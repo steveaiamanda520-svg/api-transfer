@@ -16,7 +16,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
+      <head><script src="/assets/theme-runtime.js"/><link rel="stylesheet" href="/assets/themes.css"/></head>
       <body className="antialiased">{children}</body>
     </html>
   );
