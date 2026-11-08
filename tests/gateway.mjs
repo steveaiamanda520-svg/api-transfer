@@ -17,6 +17,15 @@ const p={id:'test',name:'test',price:1,type:'tokens',limit:1,hours:5,tokenLimit:
 await call('plan',p,null,true);
 const created=await call('keys',{name:'Test',plan:'test',balance:1},null,true);const k=created.data.key;assert.ok(k.startsWith('sk-mp-'));
 const state=await call('state',null,null,true);assert.equal(JSON.stringify(state).includes('official-secret'),false);assert.equal(state.data.channels[0].configured,true);
+const ref=k.slice(0,14);
+assert.equal(state.data.accounts[0].canCopy,true);
+assert.equal(JSON.stringify(state).includes(k),false);
+assert.equal(sqlite.prepare("SELECT data FROM records WHERE kind='key-secret'").get().data.includes(k),false);
+assert.equal((await call('key-copy',{ref},k)).status,401);
+const csrf=await api.GET(new Request('https://test.local/api/key-copy',{method:'POST',headers:{'oai-authenticated-user-id':'owner',Origin:'https://evil.test','Content-Type':'application/json'},body:JSON.stringify({ref})}));assert.equal(csrf.status,403);
+assert.equal((await call('key-copy',{ref},null,true)).data.key,k);
+assert.equal((await call('key-copy',{ref},null,true)).data.key,k);
+assert.equal((await call('key-copy',{ref:'missing'},null,true)).status,404);
 let upstreamCalls=0;globalThis.fetch=async(url,opts)=>{upstreamCalls++;assert.equal(url,'https://api.openai.com/v1/chat/completions');assert.equal(opts.headers.Authorization,'Bearer official-secret');return Response.json({choices:[{message:{role:'assistant',content:'hello'}}],usage:{total_tokens:25}})};
 const body={model:'gpt-test',messages:[{role:'user',content:'hi'}],max_tokens:10};
 assert.equal((await call('v1/chat/completions',body,k)).status,200);
@@ -27,4 +36,9 @@ balance=(await call('balance',null,k)).data;assert.equal(balance.tokens,50);asse
 sqlite.exec('UPDATE accounts SET balance=0');assert.equal((await call('v1/chat/completions',body,k)).status,402);
 sqlite.exec("UPDATE accounts SET balance=1; UPDATE records SET data=json_set(data,'$.tokens',9999) WHERE kind='usage'");assert.equal((await call('v1/chat/completions',body,k)).status,402);
 await call('keys',{ref:k.slice(0,14),active:false},null,true,'PATCH');assert.equal((await call('v1/chat/completions',body,k)).status,401);
+assert.equal((await call('key-copy',{ref},null,true)).data.key,k);
+sqlite.exec("DELETE FROM records WHERE kind='key-secret'");
+assert.equal((await call('key-copy',{ref},null,true)).status,409);
+assert.equal((await call('state',null,null,true)).data.accounts[0].canCopy,false);
 console.log('PASS: admin authentication, provider binding, encryption, key issuance, balance, forwarding, token billing, upstream refund, token cap, insufficient balance, disabled key');
+
