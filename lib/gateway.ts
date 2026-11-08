@@ -15,11 +15,43 @@ if(!req.headers.get('oai-authenticated-user-id'))return json({error:{message:'�
 if(method!=='GET' && req.headers.get('origin')!==new URL(req.url).origin)return json({error:{message:'来源校验失败'}},403);
 if(path==='state'){const [r,a,l,p,summary]=await Promise.all([db().prepare("SELECT * FROM records WHERE kind='channel'").all(),db().prepare('SELECT * FROM accounts').all(),db().prepare('SELECT * FROM logs ORDER BY time DESC LIMIT 100').all(),plans(),db().prepare("SELECT COUNT(*) AS count, COALESCE(SUM(tokens),0) AS tokens, COALESCE(SUM(cost),0) AS cost, COALESCE(SUM(CASE WHEN status='success' THEN 1 ELSE 0 END),0) AS success FROM logs").first()]);return json({summary,channels:r.results.map((x:any)=>{const c=JSON.parse(x.data);return {...c,secret:undefined,configured:!!c.secret,protocols:Object.keys(endpoints(c))}}),accounts:a.results.map((x:any)=>({...x,id:undefined,ref:x.prefix})),plans:p,logs:l.results})}
 const b=await req.json() as any;
+if(path==='channel-test')return testChannel(req,b);
 if(path==='channel'){if(method==='DELETE'){await db().prepare("DELETE FROM records WHERE id=? AND kind='channel'").bind(b.id).run();return json({ok:true})}const u=new URL(b.url);const allowed=['api.openai.com','api.anthropic.com','api.deepseek.com','api.minimax.io','api.minimaxi.com','api.minimax.cn','open.bigmodel.cn','dashscope.aliyuncs.com','generativelanguage.googleapis.com','api.moonshot.cn','api.moonshot.ai'];if(u.protocol!=='https:'||!allowed.includes(u.hostname)||u.port||u.username||u.password)throw Error('请选择支持的官方 HTTPS 地址');if(!b.name||!Array.isArray(b.models)||!b.models.length||!b.models.every((m:any)=>typeof m==='string'&&m.length>0))throw Error('请填写渠道名称与模型');let old=await db().prepare('SELECT data FROM records WHERE id=?').bind(b.id||'').first();let secret=b.apiKey?await crypt(b.apiKey):old?JSON.parse(old.data).secret:null;if(!secret)throw Error('请输入官方 API Key');const c={id:b.id||crypto.randomUUID(),name:b.name,protocol:u.hostname==='api.anthropic.com'?'anthropic':'openai',url:b.url.replace(/\/$/,''),models:b.models,enabled:b.enabled!==false,secret};await db().prepare("INSERT OR REPLACE INTO records(id,kind,data) VALUES(?,'channel',?)").bind(c.id,JSON.stringify(c)).run();return json({ok:true})}
 if(path==='plan'){if(!b.name||![b.limit,b.hours,b.tokenLimit,b.rate,b.price].every(Number.isFinite)||!Number.isInteger(b.limit)||!Number.isInteger(b.tokenLimit)||b.limit<1||b.hours<1||b.hours>720||b.tokenLimit<1||b.rate<0||b.price<0)throw Error('额度、窗口和价格必须为有效正数');const all=await plans();const p={...b,id:b.id||crypto.randomUUID()};for(const item of all.filter((x:any)=>x.id!==p.id).concat(p))await db().prepare("INSERT OR REPLACE INTO records VALUES(?,'plan',?)").bind(item.id,JSON.stringify(item)).run();return json({ok:true})}
 if(path==='keys'){if(method==='PATCH'){await db().prepare('UPDATE accounts SET active=? WHERE prefix=?').bind(b.active?1:0,b.ref).run();return json({ok:true})}if(!b.name||!Number.isFinite(b.balance)||b.balance<0||!(await plans()).some((p:any)=>p.id===b.plan))throw Error('请填写名称、套餐和有效余额');const raw='sk-mp-'+crypto.randomUUID().replaceAll('-','');await db().prepare('INSERT INTO accounts(id,name,prefix,plan,balance) VALUES(?,?,?,?,?)').bind(await hash(raw),b.name,raw.slice(0,14),b.plan,b.balance).run();return json({key:raw})}
 if(path==='credit'){if(!Number.isFinite(b.amount)||b.amount<=0)throw Error('请输入有效充值金额');await db().prepare('UPDATE accounts SET balance=balance+? WHERE prefix=?').bind(b.amount,b.ref).run();return json({ok:true})}
 return json({error:{message:'接口不存在'}},404)}
+async function testChannel(req:Request,b:any){
+const fail=(message:string,code:string,status:number,diagnostics?:any)=>json({ok:false,error:{message,code},diagnostics},status);
+if(req.method!=='POST')return fail('请使用 POST 请求','invalid_method',405);
+const record=await db().prepare("SELECT data FROM records WHERE id=? AND kind='channel'").bind(b.channelId||'').first();
+if(!record)return fail('渠道不存在，请刷新后重试','channel_not_found',404);
+const c=JSON.parse(record.data),protocol=b.protocol;
+if(!c.enabled)return fail('渠道已停用，请先启用','channel_disabled',409);
+if(!c.models.includes(b.model))return fail('该模型未配置在当前渠道中','invalid_model',400);
+const base=(endpoints(c) as any)[protocol];
+if(!['openai','anthropic'].includes(protocol)||!base)return fail('当前渠道不支持该调用格式','unsupported_protocol',400);
+if(!Array.isArray(b.messages)||!b.messages.length||b.messages.length>40||!b.messages.every((m:any)=>m&&['user','assistant'].includes(m.role)&&typeof m.content==='string'&&m.content.trim())||JSON.stringify(b).length>100000||!Number.isSafeInteger(b.max_tokens)||b.max_tokens<1||b.max_tokens>4096)return fail('测试消息无效、过长或输出额度超过 4096','invalid_messages',400);
+const started=Date.now(),diagnostics:any={channelId:c.id,channelName:c.name,model:b.model,protocol,endpoint:base+(protocol==='anthropic'?'/messages':'/chat/completions'),durationMs:0,upstreamStatus:null};
+let secret='';
+const safe=(value:string,limit=800)=>value.split(secret||'\0').join('[已隐藏密钥]').replace(/sk-[A-Za-z0-9_-]+/g,'[已隐藏密钥]').slice(0,limit);
+try{
+secret=await crypt(c.secret,true);
+const headers:any={'Content-Type':'application/json'};
+if(protocol==='anthropic'){headers['anthropic-version']='2023-06-01';if(new URL(c.url).hostname.startsWith('api.minimax'))headers.Authorization='Bearer '+secret;else headers['x-api-key']=secret}else headers.Authorization='Bearer '+secret;
+const response=await fetch(diagnostics.endpoint,{method:'POST',headers,body:JSON.stringify({model:b.model,messages:b.messages,max_tokens:b.max_tokens,stream:false}),signal:AbortSignal.timeout(120000),redirect:'error'});
+diagnostics.upstreamStatus=response.status;diagnostics.requestId=safe(response.headers.get('request-id')||response.headers.get('x-request-id')||'')||null;
+const text=await response.text();diagnostics.durationMs=Date.now()-started;
+let data:any;try{data=JSON.parse(text)}catch{return fail('官方接口返回了非 JSON 响应，请检查地址','invalid_upstream_response',502,diagnostics)}
+if(!response.ok){const hint=response.status===401||response.status===403?'请检查密钥及模型访问权限':response.status===429?'官方限流或订阅额度已用尽':response.status===404?'请检查模型名称与官方地址':'请检查官方服务状态';return fail('官方 HTTP '+response.status+'：'+hint+'。'+safe(String(data.error?.message||data.base_resp?.status_msg||'')),'upstream_error',502,diagnostics)}
+const reply=protocol==='anthropic'?data.content?.filter((x:any)=>x.type==='text').map((x:any)=>x.text).join('\n'):data.choices?.[0]?.message?.content;
+if(typeof reply!=='string'||!reply.trim())return fail('官方接口未返回有效文本，请检查模型或调整测试消息','invalid_upstream_response',502,diagnostics);
+const usage=data.usage||{};diagnostics.usage=Object.fromEntries(Object.entries(usage).filter(([,v])=>typeof v==='number'&&Number.isFinite(v)&&v>=0));
+const tokens=protocol==='anthropic'?['input_tokens','output_tokens','cache_creation_input_tokens','cache_read_input_tokens'].reduce((n,k)=>n+(diagnostics.usage[k]||0),0):usage.total_tokens;
+diagnostics.tokens=Number.isSafeInteger(tokens)&&tokens>=0?tokens:null;
+return json({ok:true,reply:safe(reply,200000),diagnostics});
+}catch{diagnostics.durationMs=Date.now()-started;return fail('官方渠道连接失败或超时，请检查网络、官方地址后重试','connection_error',502,diagnostics)}
+}
 async function chat(req:Request,protocol:string){
 const fail=(message:string,code:string,status:number)=>json(protocol==='anthropic'?{type:'error',error:{type:code,message}}:{error:{message,code,type:code}},status);
 if(req.method!=='POST')return fail('请使用 POST 请求','invalid_request_error',405);

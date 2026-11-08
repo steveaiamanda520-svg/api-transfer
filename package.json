@@ -1,6 +1,6 @@
 {
-  "name": "api-transfer",
-  "version": "1.1.0",
+  "name": "site-creator-vinext-starter",
+  "version": "0.1.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -15,7 +15,7 @@
     "local:build": "vite build --config local/vite.config.ts",
     "local:start": "node --env-file-if-exists=.env.local local/server.mjs",
     "local": "npm run local:build && npm run local:start",
-    "test:gateway": "node tests/gateway.mjs && node tests/protocols.mjs && node tests/minimax-dual.mjs",
+    "test:gateway": "node tests/gateway.mjs && node tests/protocols.mjs && node tests/minimax-dual.mjs && node tests/channel-test.mjs",
     "test:local": "node tests/local-http.mjs",
     "package:local": "npm run local:build && node scripts/package-local.mjs"
   },
