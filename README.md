@@ -10,6 +10,16 @@
 
 本地运行方式见 [LOCAL_README.md](LOCAL_README.md)。运行 `npm run test:gateway` 检查协议、计费和渠道诊断，运行 `npm run test:worker` 在真实 workerd 引擎内验证兼容性。官方请求使用 `redirect: manual` 并拒绝重定向，兼容 Workers 且避免密钥被转发到其他地址。
 
+## 用户密钥接入代码
+
+在「API 密钥」的创建表单、创建成功弹窗和密钥列表中点击「代码示例」，可查看并复制 cURL、Python 标准库、JavaScript 原生 fetch 和 Claude Code 用户配置。前三种支持 OpenAI / Anthropic 协议切换，Claude Code 自动使用 Anthropic 协议。示例使用启用渠道中的真实模型列表，可修改中转站根地址。
+
+新创建的密钥在当前页面可自动带入；历史密钥仅保存哈希，示例使用 `YOUR_API_KEY` 占位，管理员可临时粘贴完整用户密钥生成示例。输入不会保存到浏览器持久存储或代码仓库。Claude Code 配置应合并到用户 `~/.claude/settings.json`（Windows：`%USERPROFILE%\.claude\settings.json`），保留原有配置。参考：https://code.claude.com/docs/en/llm-gateway-connect 。
+
+站点访问控制独立于用户 API Key。私有托管预览需要额外站点访问授权；外部客户端可连接本地 `http://localhost:8080` 或自行部署的 API 域名。不要将站点内部访问凭据写进用户示例。
+
+`npm run test:examples` 会对本地模拟 HTTP 接口实际执行生成的六种 cURL / Python / JavaScript 请求，并校验 Claude Code 配置。
+
 ---
 
 # vinext-starter
