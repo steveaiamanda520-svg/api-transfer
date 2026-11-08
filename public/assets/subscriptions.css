@@ -23,3 +23,14 @@
 .balance-subscription-title small{color:var(--mp-muted,#879b90);font-size:9px}
 .balance-subscription-title b{color:var(--mp-text,#2d4438);font-size:13px}
 @media(max-width:680px){.balance-card-wide{width:100%}.balance-account{grid-template-columns:1fr}.subscription-badges{max-width:210px}.subscription-options{max-height:180px}}
+
+
+.quota-subscriptions{display:grid;gap:7px;min-width:190px}
+.quota-subscriptions>span{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border:1px solid #405777;border-radius:8px;background:#13243a}
+.quota-subscriptions b{color:#dceafb;font-size:10px;font-weight:600}
+.quota-subscriptions small{color:#8fe7c4;font-size:9px;font-variant-numeric:tabular-nums}
+.token-presets{display:flex;gap:7px;margin-top:9px}
+.token-presets button{padding:6px 10px;border:1px solid #405777;border-radius:7px;background:#15283e;color:#a9c6e5;font-size:9px}
+.token-presets button:hover{border-color:#69dcb7;color:#a9f1d7}
+@media(max-width:680px){.quota-subscriptions{min-width:180px}.token-presets{flex-wrap:wrap}}
+
