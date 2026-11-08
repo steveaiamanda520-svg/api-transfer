@@ -1,0 +1,5 @@
+import {DatabaseSync} from 'node:sqlite';
+import {readFileSync} from 'node:fs';
+export function openStorage(path){const sqlite=new DatabaseSync(path);sqlite.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;');sqlite.exec('CREATE TABLE IF NOT EXISTS local_migrations (id TEXT PRIMARY KEY)');if(!sqlite.prepare('SELECT id FROM local_migrations WHERE id=?').get('0000')){sqlite.exec(readFileSync(new URL('../drizzle/0000_steep_maelstrom.sql',import.meta.url),'utf8'));sqlite.prepare('INSERT INTO local_migrations VALUES(?)').run('0000')}
+const wrap=(sql,args=[])=>({bind(...a){return wrap(sql,a)},async first(){return sqlite.prepare(sql).get(...args)||null},run(){return sqlite.prepare(sql).run(...args)},async all(){return {results:sqlite.prepare(sql).all(...args)}}});
+return {DB:{prepare:wrap,batch(items){sqlite.exec('BEGIN IMMEDIATE');try{const r=[];for(const item of items)r.push(item.run());sqlite.exec('COMMIT');return r}catch(e){sqlite.exec('ROLLBACK');throw e}}},close:()=>sqlite.close()}}

@@ -1,0 +1,13 @@
+import ts from 'typescript';
+import {mkdirSync,readFileSync,writeFileSync,cpSync,rmSync} from 'node:fs';
+import {resolve} from 'node:path';
+const out=resolve('outputs/modelport-local');rmSync(out,{recursive:true,force:true});mkdirSync(out,{recursive:true});for(const dir of ['local','lib','drizzle'])mkdirSync(resolve(out,dir),{recursive:true});
+for(const f of ['server.mjs','storage.mjs'])cpSync('local/'+f,resolve(out,'local',f));
+writeFileSync(resolve(out,'local/load-gateway.mjs'),"import {createGateway} from '../lib/gateway.js';\nexport async function loadGateway(env){return createGateway(env)}\n");
+const js=ts.transpileModule(readFileSync('lib/gateway.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;writeFileSync(resolve(out,'lib/gateway.js'),js);
+cpSync('drizzle/0000_steep_maelstrom.sql',resolve(out,'drizzle/0000_steep_maelstrom.sql'));cpSync('local-dist',resolve(out,'local-dist'),{recursive:true});cpSync('LOCAL_README.md',resolve(out,'README.md'));
+writeFileSync(resolve(out,'package.json'),JSON.stringify({name:'modelport-local',version:'1.1.0',type:'module',private:true,engines:{node:'>=22.13.0'},scripts:{start:'node --env-file-if-exists=.env.local local/server.mjs'}},null,2));
+writeFileSync(resolve(out,'.env.example'),'PORT=8080\nHOST=127.0.0.1\nPUBLIC_BASE_URL=http://localhost:8080\n# ADMIN_PASSWORD=replace-with-your-own-password\n# DATA_DIR=./data\n');
+writeFileSync(resolve(out,'start-local.cmd'),'@echo off\r\ncd /d "%~dp0"\r\nnode --env-file-if-exists=.env.local local/server.mjs\r\npause\r\n');
+writeFileSync(resolve(out,'start-local.sh'),'#!/bin/sh\ncd "$(dirname "$0")"\nexec node --env-file-if-exists=.env.local local/server.mjs\n',{mode:0o755});
+console.log(out);
