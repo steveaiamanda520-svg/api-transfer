@@ -23,8 +23,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <head><script src="/assets/theme-runtime.js"/><link rel="stylesheet" href="/assets/themes.css"/><link rel="stylesheet" href="/assets/mobile.css"/></head>
+      <head><script src="/assets/theme-runtime.js"/><link rel="stylesheet" href="/assets/themes.css"/><link rel="stylesheet" href="/assets/mobile.css"/><link rel="stylesheet" href="/assets/subscriptions.css"/></head>
       <body className="antialiased">{children}</body>
     </html>
   );
 }
+

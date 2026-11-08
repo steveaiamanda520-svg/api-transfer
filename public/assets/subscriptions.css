@@ -1,0 +1,25 @@
+.subscription-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.subscription-badges span{display:inline-flex;padding:5px 8px;border:1px solid #405777;border-radius:999px;background:#1a2b41;color:#b9d2ef;font-size:9px;line-height:1.2}
+.subscription-card-head{display:flex;align-items:center;gap:11px;margin:14px 0 6px}
+.subscription-card-head small{display:block;color:#90a8c3;font-size:9px;margin-bottom:4px}
+.subscription-card-head h2{margin:0}
+.subscription-options{display:grid;gap:9px;margin-top:9px;max-height:220px;overflow:auto}
+.subscription-options>label{display:flex;align-items:center;gap:10px;margin:0;padding:11px;border:1px solid #3a4d68;border-radius:8px;background:#101d30;cursor:pointer}
+.subscription-options input{width:16px;height:16px;margin:0;accent-color:#5ee0b7}
+.subscription-options span{display:flex;flex-direction:column;gap:4px}
+.subscription-options b{color:#e7f0fb;font-size:11px}
+.subscription-options small{color:#9db2ca;font-size:9px}
+.balance-card-wide{width:620px}
+.balance-account{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:25px}
+.balance-account>div{padding:14px;border:1px solid var(--mp-border,#dfe9e3);border-radius:9px;background:var(--mp-raised,#f4f8f5)}
+.balance-account small,.balance-account b{display:block}
+.balance-account small{font-size:9px;color:var(--mp-muted,#879b90);margin-bottom:7px}
+.balance-account b{font-size:12px;color:var(--mp-text,#2d4438)}
+.balance-list-title{font-size:14px;margin:0 0 12px;color:var(--mp-text,#2d4438)}
+.balance-list-title span{font-size:9px;color:var(--mp-muted,#879b90);font-weight:400;margin-left:5px}
+.balance-subscription{padding:17px;border:1px solid var(--mp-border,#dfe9e3);border-radius:11px;background:var(--mp-surface,#fff);margin-top:11px}
+.balance-subscription-title{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.balance-subscription-title>div{display:flex;flex:1;flex-direction:column;gap:3px}
+.balance-subscription-title small{color:var(--mp-muted,#879b90);font-size:9px}
+.balance-subscription-title b{color:var(--mp-text,#2d4438);font-size:13px}
+@media(max-width:680px){.balance-card-wide{width:100%}.balance-account{grid-template-columns:1fr}.subscription-badges{max-width:210px}.subscription-options{max-height:180px}}
