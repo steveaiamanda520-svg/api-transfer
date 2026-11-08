@@ -33,14 +33,17 @@ const base=(endpoints(c) as any)[protocol];
 if(!['openai','anthropic'].includes(protocol)||!base)return fail('当前渠道不支持该调用格式','unsupported_protocol',400);
 if(!Array.isArray(b.messages)||!b.messages.length||b.messages.length>40||!b.messages.every((m:any)=>m&&['user','assistant'].includes(m.role)&&typeof m.content==='string'&&m.content.trim())||JSON.stringify(b).length>100000||!Number.isSafeInteger(b.max_tokens)||b.max_tokens<1||b.max_tokens>4096)return fail('测试消息无效、过长或输出额度超过 4096','invalid_messages',400);
 const started=Date.now(),diagnostics:any={channelId:c.id,channelName:c.name,model:b.model,protocol,endpoint:base+(protocol==='anthropic'?'/messages':'/chat/completions'),durationMs:0,upstreamStatus:null};
-let secret='';
+let secret='',stage='decrypt';
 const safe=(value:string,limit=800)=>value.split(secret||'\0').join('[已隐藏密钥]').replace(/sk-[A-Za-z0-9_-]+/g,'[已隐藏密钥]').slice(0,limit);
 try{
 secret=await crypt(c.secret,true);
 const headers:any={'Content-Type':'application/json'};
 if(protocol==='anthropic'){headers['anthropic-version']='2023-06-01';if(new URL(c.url).hostname.startsWith('api.minimax'))headers.Authorization='Bearer '+secret;else headers['x-api-key']=secret}else headers.Authorization='Bearer '+secret;
-const response=await fetch(diagnostics.endpoint,{method:'POST',headers,body:JSON.stringify({model:b.model,messages:b.messages,max_tokens:b.max_tokens,stream:false}),signal:AbortSignal.timeout(120000),redirect:'error'});
+stage='request';
+const response=await fetch(diagnostics.endpoint,{method:'POST',headers,body:JSON.stringify({model:b.model,messages:b.messages,max_tokens:b.max_tokens,stream:false}),signal:AbortSignal.timeout(120000),redirect:'manual'});
 diagnostics.upstreamStatus=response.status;diagnostics.requestId=safe(response.headers.get('request-id')||response.headers.get('x-request-id')||'')||null;
+if(response.status>=300&&response.status<400){await response.body?.cancel();diagnostics.durationMs=Date.now()-started;return fail('官方接口返回重定向，已阻止转发密钥，请检查官方地址','upstream_redirect',502,diagnostics)}
+stage='response';
 const text=await response.text();diagnostics.durationMs=Date.now()-started;
 let data:any;try{data=JSON.parse(text)}catch{return fail('官方接口返回了非 JSON 响应，请检查地址','invalid_upstream_response',502,diagnostics)}
 if(!response.ok){const hint=response.status===401||response.status===403?'请检查密钥及模型访问权限':response.status===429?'官方限流或订阅额度已用尽':response.status===404?'请检查模型名称与官方地址':'请检查官方服务状态';return fail('官方 HTTP '+response.status+'：'+hint+'。'+safe(String(data.error?.message||data.base_resp?.status_msg||'')),'upstream_error',502,diagnostics)}
@@ -50,7 +53,7 @@ const usage=data.usage||{};diagnostics.usage=Object.fromEntries(Object.entries(u
 const tokens=protocol==='anthropic'?['input_tokens','output_tokens','cache_creation_input_tokens','cache_read_input_tokens'].reduce((n,k)=>n+(diagnostics.usage[k]||0),0):usage.total_tokens;
 diagnostics.tokens=Number.isSafeInteger(tokens)&&tokens>=0?tokens:null;
 return json({ok:true,reply:safe(reply,200000),diagnostics});
-}catch{diagnostics.durationMs=Date.now()-started;return fail('官方渠道连接失败或超时，请检查网络、官方地址后重试','connection_error',502,diagnostics)}
+}catch(e:any){diagnostics.durationMs=Date.now()-started;diagnostics.stage=stage;console.error('channel_test_failure',{channelId:c.id,stage,errorName:e?.name||'Error'});if(stage==='decrypt')return fail('已保存的渠道密钥无法解密，请重新填写官方 API Key 并保存；如仍失败，请检查服务器 VAULT_KEY 配置','vault_decrypt_error',500,diagnostics);return fail(e?.name==='TimeoutError'?'官方响应超时，请稍后重试':'官方渠道连接失败，请检查服务器网络与官方地址','connection_error',502,diagnostics)}
 }
 async function chat(req:Request,protocol:string){
 const fail=(message:string,code:string,status:number)=>json(protocol==='anthropic'?{type:'error',error:{type:code,message}}:{error:{message,code,type:code}},status);
@@ -76,7 +79,7 @@ const secret=await crypt(c.secret,true);const upstreamHeaders:any={'Content-Type
 if(protocol==='anthropic'){if(new URL(c.url).hostname.startsWith('api.minimax'))upstreamHeaders.Authorization='Bearer '+secret;else upstreamHeaders['x-api-key']=secret;upstreamHeaders['anthropic-version']=req.headers.get('anthropic-version')||'2023-06-01';const beta=req.headers.get('anthropic-beta');if(beta)upstreamHeaders['anthropic-beta']=beta}else upstreamHeaders.Authorization='Bearer '+secret;
 const payload={...b};if(protocol==='openai'&&payload.max_tokens===undefined&&payload.max_completion_tokens===undefined)payload.max_tokens=max;
 if(b.stream&&protocol==='openai')payload.stream_options={...b.stream_options,include_usage:true};
-const response=await fetch((endpoints(c) as any)[protocol]+(protocol==='anthropic'?'/messages':'/chat/completions'),{method:'POST',headers:upstreamHeaders,body:JSON.stringify(payload),signal:AbortSignal.timeout(120000),redirect:'error'});
+const response=await fetch((endpoints(c) as any)[protocol]+(protocol==='anthropic'?'/messages':'/chat/completions'),{method:'POST',headers:upstreamHeaders,body:JSON.stringify(payload),signal:AbortSignal.timeout(120000),redirect:'manual'});
 if(!response.ok){await response.body?.cancel();await settle(0,'error');return fail('官方渠道请求失败（'+response.status+'），请检查模型、密钥与官方额度','upstream_error',502)}
 if(b.stream){
 if(!response.body||!response.headers.get('content-type')?.includes('text/event-stream')){await response.body?.cancel();await settle(0,'error');return fail('官方接口未返回 SSE 流','upstream_error',502)}

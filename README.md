@@ -8,7 +8,7 @@
 
 在已配置渠道旁点击「测试聊天」，选择该渠道的模型和调用格式，即可直接使用服务端加密保存的官方密钥测试。请求锁定渠道 ID，不会切换到同名模型的其他渠道。测试显示实际官方接口地址、HTTP 状态、耗时、请求 ID 与 Token 用量，失败时显示经密钥脱敏的官方错误。此功能仅管理员可用，消耗官方额度，不扣用户中转余额或套餐次数。关闭窗口会停止前端等待；已发往官方的请求仍可能产生用量。
 
-本地运行方式见 [LOCAL_README.md](LOCAL_README.md)。运行 `npm run test:gateway` 检查协议、计费和渠道诊断。
+本地运行方式见 [LOCAL_README.md](LOCAL_README.md)。运行 `npm run test:gateway` 检查协议、计费和渠道诊断，运行 `npm run test:worker` 在真实 workerd 引擎内验证兼容性。官方请求使用 `redirect: manual` 并拒绝重定向，兼容 Workers 且避免密钥被转发到其他地址。
 
 ---
 
